@@ -1,0 +1,15 @@
+#!/bin/bash
+
+## Set this to the folder that has index.php
+ROOT_PATH=/var/www/html
+ROOT_FOLDER=$ROOT_PATH/certificates
+
+SCRIPTS=$ROOT_FOLDER/scripts
+CERTS=$ROOT_FOLDER/certs
+CERTPATH="/certificates/certs"
+CSS=$ROOT_FOLDER/css
+PHP=$ROOT_FOLDER/php
+CertCheck=$SCRIPTS/cert.sh
+
+WarningDays=30
+CriticalDays=14

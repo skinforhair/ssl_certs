@@ -1,0 +1,114 @@
+#!/bin/bash
+source vars
+
+subject=
+issueDate=
+expireDate=
+alts=
+issuer=
+
+function dateDiff() {
+    CD=${1:0:10}
+    d1=$(date -d "$CD" +%s)
+# echo "d1 is $d1"
+#    d2=$(date -d "$2" +%s)
+# echo "d2 is $d2"
+    d3=`date +%s`
+# echo "d3 is $d3"
+    echo $(( (d1 - d3) / 86400 ))
+}  #dateDiff
+
+function GetCertInfo() {
+
+ #zero out all the globals
+ subject=
+ issueDate=
+ expireDate=
+ alts=
+ issuer=
+
+ #grab the primary domain for this certificate
+ subject=`$CertCheck --file $1 --subject`
+ subject=`echo -n $subject`
+ subject=`echo "$subject" | sed 's#.*=##g'`
+
+ #get the issue and expiration dates
+ dates=`$CertCheck --file $1 --dates`
+ dates=`echo -n $dates`
+ dates=${dates:12}
+ issueDate=${dates:0:24}
+ expireDate=${dates:36} 
+
+ #any additional domains here
+ alts=`$CertCheck --file $1 --alt`
+# alts=`echo -n $alts`
+ AltList=$(echo $alts | tr "DNS:" "\n")
+ alts=
+ for x in $AltList
+ do
+	alts="$alts, $x"
+ done
+ alts=${alts:2}
+ #function to make clean list of alts
+
+ #parse out who issued this cert
+ issuer=`$CertCheck --file $1 --issuer`
+ issuer=`echo -n $issuer`
+ issuer=`echo "$issuer" | sed 's#.*organizationName##g'`
+ issuer=${issuer:3:$((${#issuer}-3))}
+ issuer="${issuer%%=*}" 
+ read -a array <<< "$issuer"
+
+ counter=0
+ issuer=
+ while [ $counter -lt $((${#array[@]}-1)) ]; do
+  issuer="$issuer ${array[$counter]}"
+  counter=$((counter+1))
+ done
+ issuer=${issuer:1:$((${#issuer}-1))}
+
+}  #GetCertInfo
+
+function CreatePHP() {
+ filename=`basename $1`
+ DLPath=$CERTPATH/$filename
+ filename=${filename:0:$((${#filename}-3))}
+ displayFile="display_"$filename
+ filename=$filename"php"
+ displayFile=$displayFile"htm"
+ filename=$PHP/$filename
+ displayFile=$PHP/$displayFile
+ 
+ cat $1 > $displayFile
+
+displayFile=${displayFile:${#ROOT_PATH}}
+
+ DaysToExp=$(dateDiff $expireDate)
+ DaysOld=$(dateDiff $issueDate)
+ DaysOld=$((0-$DaysOld))
+
+ echo "<tr>" > $filename
+ echo "  <td><a href='"$DLPath"'>$subject</a></td>" >> $filename
+ echo "  <td>$issuer</td>" >> $filename
+ echo "  <td>$issueDate ("$DaysOld" days old)</td>" >> $filename
+ if [ "$DaysToExp" -gt "$WarningDays" ]; then
+  echo "  <td>$expireDate ("$DaysToExp" days)</td>" >> $filename
+ elif [ "$DaysToExp" -gt "$CriticalDays" ]; then
+  echo "  <td bgcolor='yellow'>$expireDate ("$DaysToExp" days)</td>" >> $filename
+ else
+  echo "  <td bgcolor='red'>$expireDate ("$DaysToExp" days)</td>" >> $filename
+ fi
+ echo "  <td>$alts</td>" >> $filename
+ echo "  <td><a href='"$displayFile"' target='displayFrame'>View Certificate</a></td>" >> $filename
+} #CreatePHP
+
+function ReadCertFiles() {
+for i in `find $CERTS -name *.crt`; do
+ GetCertInfo $i
+ CreatePHP $i
+done
+}  #ReadCertFiles
+
+
+rm $PHP/*
+ReadCertFiles
